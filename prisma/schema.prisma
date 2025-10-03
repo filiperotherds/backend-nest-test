@@ -7,3 +7,77 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model User {
+  id String @id @default(uuid())
+  name String
+  email String @unique
+  password String
+  avatarUrl String? @map("avatar_url")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tokens Token[]
+}
+
+enum TokenType {
+  PASSWORD_RECOVER
+}
+
+model Token {
+  id String @id @default(uuid())
+  type TokenType
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String @map("user_id")
+
+  @@map("tokens")
+}
+
+enum ProRole {
+  ADMIN
+  MEMBER
+}
+
+enum ClientRole {
+  ADMIN
+  MEMBER
+}
+
+model ProInvite {
+  id String @id @default(uuid())
+  email String
+  role ProRole
+  createdAt DateTime @default(now()) @map("created_at")
+
+  author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  authorId String? @map("author_id")
+
+  organization ProOrganization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId String @map("organization_id")
+
+  @@unique([email, organizationId])
+  @@index([email])
+  @@map("pro_invites")
+}
+
+model ProOrganization {
+  id                        String   @id @default(uuid())
+  name                      String
+  slug                      String   @unique
+  domain                    String?  @unique
+  shouldAttachUsersByDomain Boolean  @default(false) @map("should_attach_users_by_domain")
+  avatarUrl                 String?  @map("avatar_url")
+  createdAt                 DateTime @default(now()) @map("created_at")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
+
+  owner   User   @relation(fields: [ownerId], references: [id])
+  ownerId String @map("owner_id")
+
+  invites  Invite[]
+  members  Member[]
+  projects Project[]
+
+  @@map("pro_organizations")
+}
