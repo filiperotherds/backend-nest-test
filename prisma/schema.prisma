@@ -88,6 +88,7 @@ model Invite {
   organizationId String
 
   @@index(email)
+  @@unique([email, organizationId])
   @@map("invite")
 }
 
@@ -128,7 +129,7 @@ model Organization {
   address Address[]
 
   @@index([slug])
-  @@map("pro_organizations")
+  @@map("organization")
 }
 
 model ProProfile {
@@ -140,6 +141,8 @@ model ProProfile {
   services  Service[]
   estimates Estimate[]
   project   Project[]
+
+  @@map("pro_profile")
 }
 
 model ClientProfile {
@@ -149,6 +152,8 @@ model ClientProfile {
   organizationId String       @unique @map("organization_id")
 
   project Project[]
+
+  @@map("client_profile")
 }
 
 model Address {
