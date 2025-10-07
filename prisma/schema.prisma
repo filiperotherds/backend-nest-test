@@ -17,10 +17,11 @@ model User {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  tokens    Token[]
-  invites   Invite[]
-  member_on Member?
+  invites Invite[]
+  tokens  Token[]
+  project Project[]
 
+  member_on                Member?
   owns_pro_rganization     ProOrganization?
   owns_client_organization ClientOrganization?
 }
@@ -40,6 +41,12 @@ model Token {
   @@map("tokens")
 }
 
+enum EstimateStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum Role {
   ADMIN
   MEMBER
@@ -57,10 +64,12 @@ model Invite {
   type      OrgType
   createdAt DateTime @default(now()) @map("created_at")
 
-  author               User?               @relation(fields: [authorId], references: [id], onDelete: SetNull)
-  authorId             String?             @map("author_id")
-  ProOrganization      ProOrganization?    @relation(fields: [proOrganizationId], references: [id])
-  proOrganizationId    String?
+  author   User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  authorId String? @map("author_id")
+
+  ProOrganization   ProOrganization? @relation(fields: [proOrganizationId], references: [id])
+  proOrganizationId String?
+
   ClientOrganization   ClientOrganization? @relation(fields: [clientOrganizationId], references: [id])
   clientOrganizationId String?
 
@@ -101,8 +110,11 @@ model ProOrganization {
   owner   User   @relation(fields: [ownerId], references: [id])
   ownerId String @unique @map("owner_id")
 
-  invites Invite[]
-  members Member[]
+  invites  Invite[]
+  members  Member[]
+  services Service[]
+  estimate Estimate[]
+  project  Project[]
 
   @@map("pro_organizations")
 }
@@ -122,6 +134,63 @@ model ClientOrganization {
 
   invite  Invite[]
   members Member[]
+  project Project[]
 
   @@map("client_organizations")
+}
+
+model Service {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  slug        String   @unique
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  project         Project[]
+  proOrganization ProOrganization[]
+
+  @@map("service")
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  description String?
+  photoUrls   String[] @map("photo_urls")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  owner   User   @relation(fields: [ownerId], references: [id])
+  ownerId String @map("owner_id")
+
+  clientOrganization   ClientOrganization? @relation(fields: [clientOrganizationId], references: [id])
+  clientOrganizationId String?             @map("client_organization_id")
+
+  service   Service @relation(fields: [serviceId], references: [id])
+  serviceId String  @map("service_id")
+
+  estimate Estimate[]
+
+  proOrganization   ProOrganization? @relation(fields: [proOrganizationId], references: [id])
+  proOrganizationId String?          @map("pro_organization_id")
+
+  @@map("project")
+}
+
+model Estimate {
+  id          String         @id @default(uuid())
+  description String?
+  duration    Int
+  value       Int
+  status      EstimateStatus @default(PENDING)
+  createdAt   DateTime       @default(now()) @map("created_at")
+  validity    DateTime?
+
+  proOrganization   ProOrganization @relation(fields: [proOrganizationId], references: [id])
+  proOrganizationId String          @map("provider_id")
+
+  project   Project @relation(fields: [projectId], references: [id])
+  projectId String  @map("project_id")
+
+  @@map("estimate")
 }
