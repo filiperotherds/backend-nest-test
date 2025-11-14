@@ -8,227 +8,242 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  password  String
-  avatarUrl String?  @map("avatar_url")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  tokens  Token[]
-  invites Invite[]
-
-  member            Member?
-  organizationOwner Organization?
-  userProfile       UserProfile?
+// Enums
+enum UserRole {
+  CLIENT
+  PROFESSIONAL
 }
 
-model UserProfile {
-  id           String    @id @default(uuid())
-  addresses    Address[]
-  projectOwner Project[]
-
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId String @unique @map("user_id")
-
-  @@map("user_profile")
-}
-
-enum TokenType {
-  PASSWORD_RECOVER
-}
-
-model Token {
-  id        String    @id @default(uuid())
-  type      TokenType
-  createdAt DateTime  @default(now()) @map("created_at")
-
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId String @map("user_id")
-
-  @@map("tokens")
-}
-
-enum ProjectStatus {
+enum InviteStatus {
   PENDING
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
-}
-
-enum EstimateStatus {
-  PENDING
-  APPROVED
+  ACCEPTED
   REJECTED
+  EXPIRED
 }
 
-enum Role {
+enum MemberRole {
   ADMIN
   MEMBER
 }
 
-enum OrgType {
-  PRO
-  CLIENT
+enum ServicePriceType {
+  FIXED
+  PER_HOUR
+  QUOTATION
 }
 
-model Invite {
+enum QuotationStatus {
+  PENDING
+  SENT
+  ACCEPTED
+  REJECTED
+  CANCELED
+}
+
+// Auth Domain
+model User {
+  id           String        @id @default(uuid())
+  name         String
+  email        String        @unique
+  passwordHash String        @map("password_hash")
+  role         UserRole      @default(CLIENT)
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  // Relationships
+  tokens             Token[]
+  userProfile        UserProfile?
+  organizationOwner  Organization?
+  memberships        Member[]
+}
+
+model Token {
   id        String   @id @default(uuid())
-  email     String
-  role      Role
-  type      OrgType
+  userId    String   @map("user_id")
+  token     String   @unique
+  type      String // 'access' | 'refresh'
+  expiresAt DateTime @map("expires_at")
   createdAt DateTime @default(now()) @map("created_at")
 
-  author   User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
-  authorId String? @map("author_id")
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  organizationId String
-
-  @@unique([email, organizationId])
-  @@index(email)
-  @@map("invite")
+  @@map("tokens")
 }
 
-model Member {
-  id   String  @id @default(uuid())
-  role Role    @default(MEMBER)
-  type OrgType
-
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId String @unique @map("user_id")
-
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  organizationId String       @map("organization_id")
-
-  @@index([organizationId], map: "idx_member_organization_id")
-  @@map("member")
-}
-
-model Organization {
-  id                        String   @id @default(uuid())
-  name                      String
-  slug                      String   @unique
-  type                      OrgType
-  domain                    String?  @unique
-  shouldAttachUsersByDomain Boolean  @default(false) @map("should_attach_users_by_domain")
-  avatarUrl                 String?  @map("avatar_url")
-  createdAt                 DateTime @default(now()) @map("created_at")
-  updatedAt                 DateTime @updatedAt @map("updated_at")
-
-  owner   User   @relation(fields: [ownerId], references: [id])
-  ownerId String @unique @map("owner_id")
-
-  proProfile    ProProfile?
-  clientProfile ClientProfile?
-
-  invites Invite[]
-  members Member[]
-  address Address[]
-
-  @@index(slug)
-  @@map("organization")
-}
-
-model ProProfile {
-  id String @id @default(uuid())
-
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  organizationId String       @unique @map("organization_id")
-
-  services  Service[]
-  estimates Estimate[]
-  project   Project[]
-
-  @@map("pro_profile")
-}
-
-model ClientProfile {
-  id String @id @default(uuid())
-
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  organizationId String       @unique @map("organization_id")
-
-  project Project[]
-
-  @@map("client_profile")
-}
-
-model Address {
+// Client Domain
+model UserProfile {
   id        String   @id @default(uuid())
-  number    String
-  street    String
-  city      String
-  state     String
-  zipCode   String   @map("zip_code")
-  country   String
+  userId    String   @unique @map("user_id")
+  cpf       String   @unique
+  phone     String
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  organization   Organization? @relation(fields: [organizationId], references: [id])
-  organizationId String?       @map("organization_id")
+  // Relationships
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quotations Quotation[]
+  addresses Address[]
 
-  userProfile   UserProfile? @relation(fields: [userProfileId], references: [id])
-  userProfileId String?      @map("user_profile_id")
-
-  @@map("address")
+  @@map("user_profiles")
 }
 
-model Service {
+// Organization Domain
+model Organization {
   id          String   @id @default(uuid())
+  ownerId     String   @unique @map("owner_id")
   name        String
-  description String?
   slug        String   @unique
+  cnpj        String   @unique
+  description String
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  project    Project[]
-  proProfile ProProfile[]
-
-  @@map("service")
+  // Relationships
+  owner         User          @relation(fields: [ownerId], references: [id])
+  addresses     Address[]
+  members       Member[]
+  invites       Invite[]
+  proProfile    ProProfile?
+  quotations    Quotation[] // Quotations received by the organization
 }
 
-model Project {
-  id          String        @id @default(uuid())
-  description String?
-  photoUrls   String[]      @map("photo_urls")
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
-  status      ProjectStatus @default(PENDING)
+model Member {
+  id             String     @id @default(uuid())
+  organizationId String     @map("organization_id")
+  userId         String     @map("user_id")
+  role           MemberRole @default(MEMBER)
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
 
-  service   Service @relation(fields: [serviceId], references: [id])
-  serviceId String  @map("service_id")
+  // Relationships
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  estimate Estimate[]
-
-  proProfile   ProProfile? @relation(fields: [proProfileId], references: [id])
-  proProfileId String?     @map("pro_profile_id")
-
-  clientProfile   ClientProfile? @relation(fields: [clientProfileId], references: [id])
-  clientProfileId String?        @map("client_profile_id")
-
-  userProfile   UserProfile? @relation(fields: [userProfileId], references: [id])
-  userProfileId String?      @map("user_profile_id")
-
-  @@map("project")
+  @@unique([organizationId, userId])
+  @@map("members")
 }
 
-model Estimate {
-  id          String         @id @default(uuid())
-  description String?
-  duration    Int
-  value       Int
-  status      EstimateStatus @default(PENDING)
-  createdAt   DateTime       @default(now()) @map("created_at")
-  validity    DateTime?
+model Invite {
+  id             String       @id @default(uuid())
+  organizationId String       @map("organization_id")
+  recipientEmail String       @map("recipient_email")
+  role           MemberRole
+  status         InviteStatus @default(PENDING)
+  expiresAt      DateTime     @map("expires_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
 
-  project   Project @relation(fields: [projectId], references: [id])
-  projectId String  @map("project_id")
+  // Relationships
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  proProfile   ProProfile? @relation(fields: [proProfileId], references: [id])
-  proProfileId String?     @map("pro_profile_id")
+  @@unique([organizationId, recipientEmail])
+  @@map("invites")
+}
 
-  @@map("estimate")
+model ProProfile {
+  id             String   @id @default(uuid())
+  organizationId String   @unique @map("organization_id")
+  specialties    String[]
+  rating         Float    @default(0)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relationships
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  services     Service[]
+
+  @@map("pro_profiles")
+}
+
+// Shared Model (Address Value Object as a Model)
+model Address {
+  id             String        @id @default(uuid())
+  street         String
+  number         String
+  complement     String?
+  neighborhood   String
+  city           String
+  state          String
+  zipCode        String        @map("zip_code")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  // Relationships (optional for both)
+  userProfileId  String?       @map("user_profile_id")
+  userProfile    UserProfile?  @relation(fields: [userProfileId], references: [id])
+
+  organizationId String?       @map("organization_id")
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  @@map("addresses")
+}
+
+// Services Domain
+model Category {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  slug      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relationships
+  services Service[]
+
+  @@map("categories")
+}
+
+model Service {
+  id             String           @id @default(uuid())
+  organizationId String           @map("organization_id")
+  categoryId     String           @map("category_id")
+  title          String
+  description    String
+  priceType      ServicePriceType @map("price_type")
+  basePrice      Float?           @map("base_price")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  // Relationships
+  organization ProProfile @relation(fields: [organizationId], references: [organizationId], onDelete: Cascade)
+  category     Category   @relation(fields: [categoryId], references: [id])
+  quotationItems QuotationItem[]
+
+  @@map("services")
+}
+
+// Quotation Domain
+model Quotation {
+  id             String          @id @default(uuid())
+  clientId       String          @map("client_id")
+  organizationId String          @map("organization_id")
+  status         QuotationStatus @default(PENDING)
+  description    String
+  totalPrice     Float           @map("total_price")
+  expiresAt      DateTime        @map("expires_at")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  // Relationships
+  client       UserProfile  @relation(fields: [clientId], references: [userId]) // Assuming clientId is the userId of the client
+  organization Organization @relation(fields: [organizationId], references: [id])
+  items        QuotationItem[]
+
+  @@map("quotations")
+}
+
+model QuotationItem {
+  id          String   @id @default(uuid())
+  quotationId String   @map("quotation_id")
+  serviceId   String   @map("service_id")
+  description String
+  quantity    Int
+  unitPrice   Float    @map("unit_price")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relationships
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  service   Service   @relation(fields: [serviceId], references: [id])
+
+  @@map("quotation_items")
 }
